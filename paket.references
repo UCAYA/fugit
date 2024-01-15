@@ -1,0 +1,9 @@
+Avalonia.Desktop
+Avalonia.FuncUI
+Avalonia.FuncUI.Elmish
+Avalonia.Themes.Fluent
+LibGit2Sharp
+FSharp.Core
+Thoth.Json.Net
+FsToolkit.ErrorHandling
+FsToolkit.ErrorHandling.TaskResult

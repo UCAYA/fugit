@@ -1,0 +1,12 @@
+source https://www.nuget.org/api/v2
+framework: net8.0
+
+nuget FSharp.Core
+nuget Avalonia.Desktop
+nuget Avalonia.FuncUI
+nuget Avalonia.FuncUI.Elmish
+nuget Avalonia.Themes.Fluent
+nuget FsToolkit.ErrorHandling
+nuget FsToolkit.ErrorHandling.TaskResult
+nuget LibGit2Sharp
+nuget Thoth.Json.Net
