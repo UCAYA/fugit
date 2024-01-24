@@ -35,6 +35,28 @@ let view mainModel (dispatch) =
             DockPanel.lastChildFill true
             DockPanel.children
                 [
+                    Menu.create [
+                        Menu.dock Dock.Top
+                        Menu.viewItems [
+                            MenuItem.create [
+                                MenuItem.header "File"
+                                MenuItem.viewItems [
+                                    MenuItem.create [
+                                        MenuItem.header "Open Repository"
+                                        // MenuItem.viewItems (
+                                        //     mainModel.Repositories
+                                        //     |> List.map (fun repo ->
+                                        //         MenuItem.create [
+                                        //             MenuItem.header repo.Name
+                                        //             MenuItem.command (fun _ -> Msg.Opened repo |> dispatch)
+                                        //         ]
+                                        //     )
+                                        // )
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
                     ScrollViewer.create
                         [
                             ScrollViewer.dock Dock.Top

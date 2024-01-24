@@ -7,4 +7,5 @@ type MainModel =
     }
 
 [<RequireQualifiedAccess>]
-type Msg = | SelectTab of string
+type Msg =
+    | SelectTab of string

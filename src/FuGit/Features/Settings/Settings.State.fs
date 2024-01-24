@@ -15,20 +15,21 @@ let saveLock = obj
 module Cmds =
     let load () =
         Cmd.ofEffect (fun dispatch ->
-            asyncResult {
-                if not (File.Exists defaultSettingsPath) then
-                    return! SettingsFileNotFound defaultSettingsPath |> Result.Error
-                else
-                    let! raw =
-                        defaultSettingsPath
-                        |> File.ReadAllTextAsync
-                    return!
-                        raw
-                        |> Json.fromString<Settings>
-                        |> Result.mapError (fun err -> SettingsFileParseError err)
+           asyncResult {
+                do! File.Exists defaultSettingsPath
+                    |> Result.requireTrue (SettingsFileNotFound defaultSettingsPath)
+                    
+                let! raw =
+                    defaultSettingsPath
+                    |> File.ReadAllTextAsync
+
+                return!
+                    raw
+                    |> Json.fromString<Settings>
+                    |> Result.mapError (fun err -> SettingsFileParseError err)
 
             }
-            |> Async.map (Msg.StateLoaded >> dispatch)
+            |> Async.map (fun result ->  result |> Msg.StateLoaded |> dispatch)
             |> Async.StartImmediate
         )
 

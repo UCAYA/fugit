@@ -11,6 +11,7 @@
     <Content Include="icon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Compile Include="Infrastructure/Polyglot.fs" />
     <Compile Include="Infrastructure/CloseAwaiter.fs" />
     <Compile Include="Infrastructure/Json.fs" />
     <Compile Include="Infrastructure/Loadable.fs" />
@@ -20,18 +21,15 @@
     <Compile Include="Features/AppState/AppState.Types.fs" />
     <Compile Include="Features/Main/Main.Types.fs" />
     <Compile Include="Features/App/App.Types.fs" />
-
     <Compile Include="Features/Main/Main.View.fs" />
     <Compile Include="Features/App/App.View.fs" />
     <Compile Include="Features/Settings/Settings.State.fs" />
     <Compile Include="Features/AppState/AppState.State.fs" />
     <Compile Include="Features/Main/Main.State.fs" />
-
     <!--<Compile Include="Features/AppState/State.Out.fs" />
     <Compile Include="Features/Settings/Settings.Out.fs" />-->
-
     <Compile Include="Features/App/App.State.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
-  <Import Project=".paket\Paket.Restore.targets" />
+  <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>
