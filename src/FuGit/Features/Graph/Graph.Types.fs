@@ -12,17 +12,42 @@ type Node =
 
 // type PathId = PathId of int
 
-type PathNode =
-    | Vertical of Node
-    | HorizontalToBottom of Node
-    | TopToHorizontal of Node
-    | Horizontal
+[<RequireQualifiedAccess>]
+type GraphNodeReference = | TargetColumnIndex of int
 
-type NodeType =
-    | Commit of Node * int
-    | Empty of int
-    | Path of PathNode list * int
+// type VerticalPath =
+//     | Vertical
+//     | HalfVerticalTop
+//     | HalfVerticalBottom
 
+// type Path =
+//     | Vertical of VerticalPath * GraphNodeReference
+//     | HorizontalRightToBottom of GraphNodeReference
+//     | HorizontalLeftToBottom of GraphNodeReference
+//     | TopToHorizontalRight of GraphNodeReference
+//     | TopToHorizontalLeft of GraphNodeReference
+//     | Horizontal of GraphNodeReference
+//     | HalfHorizontalRight of GraphNodeReference
+//     | HalfHorizontalLeft of GraphNodeReference
+
+// type NodeType =
+//     | Commit of Commit * Reference list * int
+//     | Empty of int
+//     | Path of PathNode list * int
+
+type GraphNodePath =
+    {
+        HalfTop: GraphNodeReference option
+        HalfRight: GraphNodeReference option
+        HalfBottom: GraphNodeReference option
+        HalfLeft: GraphNodeReference option
+    }
+
+type GraphNode =
+    {
+        Commit: Commit option
+        Path: GraphNodePath
+    }
 // [<RequireQualifiedAccess>]
 // type NodeDrawingType =
 //     | ``┌``
@@ -33,6 +58,17 @@ type NodeType =
 //     | ``─``
 
 module RepositoryGraph =
+    let emptyNode =
+        {
+            Commit = None
+            Path =
+                {
+                    HalfTop = None
+                    HalfRight = None
+                    HalfBottom = None
+                    HalfLeft = None
+                }
+        }
 
     let loadRefsAndCommits (repository: Repository) =
         let refAndCommit (ref: Reference) =
@@ -47,168 +83,257 @@ module RepositoryGraph =
         ]
         |> List.sortByDescending (fun (_r, commit) -> commit.Committer.When)
 
-    let childNodes: (Node list) list = List.Empty
-
-    let (|PathWithBottom|_|) nodeType =
-        match nodeType with
-        | Path(path, columnIndex) ->
-            path
-            |> List.tryPick (
-                function
-                | HorizontalToBottom node -> Some(node, columnIndex)
-                | Vertical node -> Some(node, columnIndex)
-                | _ -> None
-            )
-        | _ -> None
+    // let (|PathWithBottom|_|) nodeType =
+    //     match nodeType with
+    //     | Path(path, columnIndex) ->
+    //         path
+    //         |> List.tryPick (fun path ->
+    //             match path with
+    //             | HorizontalToBottom node -> Some(node, columnIndex)
+    //             | Vertical node -> Some(node, columnIndex)
+    //             | _ -> None
+    //         )
+    //     | _ -> None
 
 
-    let updateOrInsert columnIndex commitRefColumnIndex rowNodes =
-        match rowNodes |> List.tryItem columnIndex with
-        | Some(NodeType.Empty columnIndex) ->
-            fun newPath -> List.updateAt columnIndex (NodeType.Path([ newPath ], commitRefColumnIndex)) rowNodes
-        | Some(NodeType.Path(path, columnIndex)) ->
-            fun newPath -> List.updateAt columnIndex (NodeType.Path(newPath :: path, commitRefColumnIndex)) rowNodes
-        | Some(NodeType.Commit(_node, _columnIndex)) -> fun _newPath -> rowNodes
-        | None -> fun newPath -> List.insertAt columnIndex (NodeType.Path([ newPath ], commitRefColumnIndex)) rowNodes
+    // let updateOrInsert columnIndex commitRefColumnIndex rowNodes =
+    //     match rowNodes |> List.tryItem columnIndex with
+    //     | Some(NodeType.Empty columnIndex) ->
+    //         fun newPath -> List.updateAt columnIndex (NodeType.Path([ newPath ], commitRefColumnIndex)) rowNodes
+    //     | Some(NodeType.Path(path, columnIndex)) ->
+    //         fun newPath -> List.updateAt columnIndex (NodeType.Path(newPath :: path, commitRefColumnIndex)) rowNodes
+    //     | Some(NodeType.Commit(_node, _columnIndex)) -> fun _newPath -> rowNodes
+    //     | None -> fun newPath -> List.insertAt columnIndex (NodeType.Path([ newPath ], commitRefColumnIndex)) rowNodes
 
-    //let  (ref, currentCommit) :: nextRefsAndCommits = nRefsAndCommits
-    // let childNodes = n
+    let updateAtFn index map list =
+        let value = list |> List.item index
+        list |> List.updateAt index (map value)
+
+    let mapIf condition map value =
+        if condition then
+            map value
+        else
+            value
+
+    let insertAtFreeIndex map (list: (GraphNode * Commit option) list) =
+        match list |> List.tryFindIndex (fun (_, commit) -> commit.IsNone) with
+        | Some idx -> list |> List.updateAt idx (map idx), idx
+        | None -> list |> List.insertAt list.Length (map list.Length), list.Length
 
     let rec walkCommitAndRefsAndCreateParentsTree
-        (refsAndCommits: (Reference * Commit) list)
-        (previousNodesRow: (NodeType list) option)
+        (commits: Commit list)
+        (previousNodesRow: (GraphNode * Commit option) list option)
         =
+
+        // Prepare a new row, if we have a graph with a path on previous row, we will have a half top vertical path on current row
         let currentRow =
             previousNodesRow
             |> Option.defaultValue List.empty
-            |> List.map (fun nodeType ->
-                match nodeType with
-                | NodeType.Commit(node, columnIndex) -> Path([ Vertical node ], columnIndex)
-                | NodeType.Empty columnIndex -> Empty columnIndex
-                | PathWithBottom(node, columnIndex) -> Path([ Vertical node ], columnIndex)
-                | NodeType.Path(_path, columnIndex) -> Empty columnIndex
+            |> List.map (fun (graphNode, commit) ->
+                match graphNode.Path.HalfBottom with
+                | Some target ->
+                    { emptyNode with
+                        Path.HalfTop = Some target
+                        Path.HalfBottom = Some target
+                    },
+                    commit
+                | None -> emptyNode, None
             )
+            |> List.rev
+            |> List.skipWhile (fun (node, followCommit) -> followCommit.IsNone && node = emptyNode)
+            |> List.rev
 
         match
-            refsAndCommits
-            |> List.sortByDescending (fun (_ref, commit) -> commit.Committer.When)
+            commits
+            |> List.distinctBy (fun commit -> commit.Id)
+            |> List.sortByDescending (fun commit -> commit.Committer.When)
         with
         | [] -> [], currentRow
-        | (ref, currentCommit) :: nextRefsAndCommits ->
-            // When computing a new commit line, we should transform previous node type to new node type
-            let tryFindColumnIndexOfCommit c =
+        | (currentCommit) :: nextCommits ->
+
+
+            let tryFindChildNodeColumnIndexOfCommit c =
                 currentRow
-                |> List.tryFindIndex (fun nodeType ->
-                    match nodeType with
-                    | NodeType.Commit(node, _)
-                    | PathWithBottom(node, _) -> node.Parent = Some c
-                    | NodeType.Empty _
-                    | NodeType.Path _ -> false
+                |> List.tryFindIndex (fun (_, nextParentCommit) -> nextParentCommit = Some c)
+
+            let childNodeIndexesOfCurrentCommit =
+                currentRow
+                |> List.indexed
+                |> List.choose (fun (index, (_, nextParentCommit)) ->
+                    if nextParentCommit = Some currentCommit then
+                        Some index
+                    else
+                        None
                 )
 
-            let commitNodes =
-                let nodes =
-                    // current commit not found in previous row, it's a new start point
-                    currentCommit.Parents
-                    |> Seq.mapi (fun idx parentCommit ->
-                        // idx = 0 for current node
-                        // idx <> 0 for merge nodes where we try to find matching column index (junction point)
-                        let columnIndex =
-                            if idx = 0 then
-                                tryFindColumnIndexOfCommit currentCommit
-                            else
-                                tryFindColumnIndexOfCommit parentCommit
+            let splitGraphIndexes = childNodeIndexesOfCurrentCommit |> List.rev |> List.pairwise
 
-                        let node =
-                            {
-                                Reference = ref
-                                Commit = currentCommit
-                                Parent = Some parentCommit
-                            }
+            let currentRow, currentNodeIndex =
+                let firstCommitParent = currentCommit.Parents |> Seq.tryHead
 
-                        node, columnIndex
+                match childNodeIndexesOfCurrentCommit |> Seq.tryHead with
+                | None ->
+                    currentRow
+                    |> insertAtFreeIndex (fun idx ->
+                        ({ emptyNode with
+                            Commit = Some currentCommit
+                            Path.HalfBottom =
+                                if firstCommitParent.IsSome then
+                                    Some(GraphNodeReference.TargetColumnIndex idx)
+                                else
+                                    None
+                         },
+                         firstCommitParent)
                     )
-                    |> Seq.toList
+                | Some index ->
+                    currentRow
+                    |> updateAtFn
+                        index
+                        (fun (node, _commit) ->
+                            ({ node with
+                                Commit = Some currentCommit
+                                Path.HalfBottom =
+                                    if firstCommitParent.IsSome then
+                                        Some(GraphNodeReference.TargetColumnIndex index)
+                                    else
+                                        None
+                             },
+                             firstCommitParent)
+                        ),
+                    index
 
-                if nodes.Length = 0 then
-                    let node =
-                        {
-                            Reference = ref
-                            Commit = currentCommit
-                            Parent = None
-                        }
+            // Split nodes implies that child nodes are already existing in the previous row
+            let currentRow =
+                (currentRow, splitGraphIndexes)
+                ||> List.fold (fun currentRow (endIndex, startIndex) ->
+                    (currentRow, [ startIndex..endIndex ])
+                    ||> List.fold (fun currentRow index ->
+                        currentRow
+                        |> updateAtFn
+                            index
+                            (fun (node, commit) ->
+                                let updatedNode =
+                                    node
+                                    |> mapIf
+                                        (index = endIndex)
+                                        (fun node ->
+                                            { node with
+                                                Path.HalfTop = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                                Path.HalfLeft = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                            }
+                                        )
+                                    |> mapIf
+                                        (index = startIndex)
+                                        (fun node ->
+                                            { node with
+                                                Path.HalfRight = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                            }
+                                        )
+                                    |> mapIf
+                                        (index > endIndex && index < startIndex)
+                                        (fun node ->
+                                            { node with
+                                                Path.HalfLeft = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                                Path.HalfRight = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                            }
+                                        )
 
-                    [ node, None ]
-                else
-                    nodes
-            // printfn "commitNodes %A" commitNodes
-
-
-            let rowNodes =
-                // let [ (node, nodeIndex) ] = commitNodes
-                let mutable commitColumnIndexMemo = None
-
-                (currentRow, commitNodes)
-                ||> List.fold (fun rowNodes (node, nodeIndex) ->
-                    let currentColumnIndex =
-                        nodeIndex // matching column from previous commit
-                        |> Option.defaultValue rowNodes.Length // column index from where we will insert the new node
-
-                    let commitColumnIndex =
-                        commitColumnIndexMemo |> Option.defaultValue currentColumnIndex
-
-
-                    let newRowNodes =
-                        if commitColumnIndexMemo.IsNone then
-                            // Commit node is created on first iteration
-                            // Other nodes are Merge nodes
-                            let updateOrInsert =
-                                if currentColumnIndex < rowNodes.Length then
-                                    List.updateAt
+                                if index = endIndex then
+                                    { updatedNode with Path.HalfBottom = None }, None // When we split a node, next row in graph won't have to follow this commit anymore
                                 else
-                                    List.insertAt
+                                    updatedNode, commit
+                            )
+                    )
+                )
 
-                            rowNodes
-                            |> updateOrInsert currentColumnIndex (NodeType.Commit(node, currentColumnIndex))
-                        else
-                            let pathRange =
-                                if commitColumnIndex < currentColumnIndex then
-                                    [ commitColumnIndex + 1 .. currentColumnIndex - 1 ]
-                                else
-                                    [ currentColumnIndex + 1 .. commitColumnIndex - 1 ]
+            let (currentRow, mergeGraphIndexes) =
+                ((currentRow, List.empty), (currentCommit.Parents |> Seq.indexed))
+                ||> Seq.fold (fun (currentRow, indexes) (idx, parentCommit) ->
+                    // idx = 0 for current node
+                    // idx <> 0 for merge nodes where we try to find matching column index (junction point)
+                    if idx = 0 then
+                        currentRow, currentNodeIndex :: indexes
+                    else
+                        match tryFindChildNodeColumnIndexOfCommit parentCommit with
+                        | Some idx ->
+                            currentRow
+                            |> updateAtFn
+                                idx
+                                (fun (node, _) ->
+                                    { node with
+                                        Path.HalfTop = Some(GraphNodeReference.TargetColumnIndex idx)
+                                        Path.HalfBottom = None
+                                    },
+                                    Some parentCommit
+                                ),
+                            idx :: indexes
+                        | None ->
 
-                            // Fill horizontal path
-                            let rowNodes =
-                                (rowNodes, pathRange)
-                                ||> List.fold (fun rowNodes columnIndex ->
-                                    updateOrInsert
-                                        columnIndex
-                                        commitColumnIndexMemo.Value
-                                        rowNodes
-                                        PathNode.Horizontal
+                            let currentRow, insertIdx =
+                                currentRow
+                                |> insertAtFreeIndex (fun insertIdx ->
+                                    ({ emptyNode with
+                                        Path.HalfTop = Some(GraphNodeReference.TargetColumnIndex insertIdx)
+                                        Path.HalfBottom = None
+                                     },
+                                     Some parentCommit)
                                 )
 
-                            // set merge node
-                            updateOrInsert
-                                currentColumnIndex
-                                commitColumnIndexMemo.Value
-                                rowNodes
-                                (PathNode.HorizontalToBottom node)
-
-                    // NodeType.Merge (node, currentColumnIndex, commitColumnIndex)
-
-                    commitColumnIndexMemo <- Some commitColumnIndex
-
-                    newRowNodes
+                            currentRow, insertIdx :: indexes
                 )
 
-            let newRefsAndCommits =
-                [
-                    match currentCommit.Parents |> Seq.tryHead with
-                    | None -> ()
-                    | Some parentCommit -> (ref, parentCommit)
+            let currentRow =
+                (currentRow, mergeGraphIndexes |> List.pairwise)
+                ||> List.fold (fun currentRow (endIndex, startIndex) ->
+                    (currentRow, [ startIndex..endIndex ])
+                    ||> List.fold (fun currentRow index ->
+                        currentRow
+                        |> updateAtFn
+                            index
+                            (fun (node, commit) ->
+                                let updatedNode =
+                                    node
+                                    |> mapIf
+                                        (index = endIndex)
+                                        (fun node ->
+                                            { node with
+                                                Path.HalfBottom =
+                                                    Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                                Path.HalfLeft = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                            }
+                                        )
+                                    |> mapIf
+                                        (index = startIndex)
+                                        (fun node ->
+                                            { node with
+                                                Path.HalfRight = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                            }
+                                        )
+                                    |> mapIf
+                                        (index > endIndex && index < startIndex)
+                                        (fun node ->
+                                            { node with
+                                                Path.HalfLeft = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                                Path.HalfRight = Some(GraphNodeReference.TargetColumnIndex endIndex)
+                                            }
+                                        )
 
-                    yield! nextRefsAndCommits
-                ]
+                                updatedNode, commit
+                            )
+                    )
+                )
 
-            (newRefsAndCommits, rowNodes)
+            let nextCommits =
+                currentRow
+                |> List.choose (fun (_, commit) -> commit)
+                |> List.append nextCommits
+                |> List.distinctBy (fun commit -> commit.Id)
+                |> List.sortByDescending (fun commit -> commit.Committer.When)
+
+            let trimmedRow =
+                currentRow
+                |> List.rev
+                |> List.skipWhile (fun (node, followCommit) -> followCommit.IsNone && node = emptyNode)
+                |> List.rev
+
+            nextCommits, trimmedRow

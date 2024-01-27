@@ -8,45 +8,64 @@ open LibGit2Sharp
 let testDataDirectory = DirectoryInfo(  __SOURCE_DIRECTORY__ + "/../../testdata" |> System.IO.Path.GetFullPath)
 let merge1RepositoryPath = Path.Combine(testDataDirectory.FullName, "merge1")
 
-let (|C|_|) nodeType =
-    match nodeType with
-    | Commit (_node, _columnIndex) -> Some ()
+let (|C|_|) (node, _) =
+    if node.Commit.IsSome then Some ()
+    else None
+
+let (|``P╴``|_|) (node, _) =
+    match node.Path.HalfLeft with
+    | Some _  -> Some ()
     | _ -> None
 
-let (|``P┐``|_|) (nodeType) =
-    match nodeType with
-    | Path (p, _) when p |> List.exists (function | PathNode.HorizontalToBottom _ -> true | _ -> false) -> Some ()
+let (|``P╶``|_|) (node, _) =
+    match node.Path.HalfLeft with
+    | Some _  -> Some ()
     | _ -> None
 
-let (|``P┌``|_|) nodeType =
-    match nodeType with
-    | Path (p, _) when p |> List.exists (function | PathNode.HorizontalToBottom _ -> true | _ -> false) -> Some ()
+let (|``P╵``|_|) (node, _) =
+    match node.Path.HalfTop with
+    | Some _  -> Some ()
     | _ -> None
 
-let (|``P┘``|_|) nodeType =
-    match nodeType with
-    | Path (p, _) when p |> List.exists (function | PathNode.TopToHorizontal _ -> true | _ -> false) -> Some ()
+let (|``P╷``|_|) (node, _) =
+    match node.Path.HalfBottom with
+    | Some _  -> Some ()
     | _ -> None
 
-let (|``P└``|_|) nodeType =
-    match nodeType with
-    | Path (p, _) when p |> List.exists (function | PathNode.TopToHorizontal _ -> true | _ -> false) -> Some ()
+let (|``P┐``|_|) (node, _) =
+    match node.Path.HalfBottom, node.Path.HalfLeft with
+    | Some _ , Some _ -> Some ()
     | _ -> None
 
-let (|``P─``|_|) nodeType =
-    match nodeType with
-    | Path (p, _) when p |> List.exists (function | PathNode.Horizontal -> true | _ -> false) -> Some ()
+let (|``P┌``|_|) (node, _) =
+    match node.Path.HalfBottom, node.Path.HalfRight with
+    | Some _ , Some _ -> Some ()
     | _ -> None
 
-let (|``P│``|_|) nodeType =
-    match nodeType with
-    | Path (p, _) when p |> List.exists (function | PathNode.Vertical _ -> true | _ -> false) -> Some ()
+let (|``P┘``|_|) (node, _) =
+    match node.Path.HalfTop, node.Path.HalfLeft with
+    | Some _ , Some _ -> Some ()
     | _ -> None
 
-let (|``E``|_|) nodeType =
-    match nodeType with
-    | Empty _ -> Some ()
+let (|``P└``|_|) (node, _) =
+    match node.Path.HalfTop, node.Path.HalfRight with
+    | Some _ , Some _ -> Some ()
     | _ -> None
+
+
+let (|``P─``|_|) (node, _) =
+    match node.Path.HalfLeft, node.Path.HalfRight with
+    | Some _ , Some _ -> Some ()
+    | _ -> None
+
+let (|``P│``|_|) (node, _) =
+    match node.Path.HalfBottom, node.Path.HalfTop with
+    | Some _ , Some _ -> Some ()
+    | _ -> None
+
+let (|``E``|_|) (node, _) =
+    if node = RepositoryGraph.emptyNode then Some ()
+    else None
 
 [<Tests>]
 let tests =
@@ -58,45 +77,47 @@ let tests =
 
                 use repository = new LibGit2Sharp.Repository(merge1RepositoryPath)
 
-                let refsAndCommits = RepositoryGraph.loadRefsAndCommits repository
+                let commits =
+                    RepositoryGraph.loadRefsAndCommits repository
+                    |> List.map snd
 
-                let (nRefsAndCommits, n)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree refsAndCommits None
+                let (nextCommits1, n)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree commits None
                 Expect.isTrue (
                     match n with
-                    | [ C; ``P┐`` ] -> true
+                    | [ (C & ``P┌``) ; ``P┐`` ] -> true
                     | _ -> false
                 ) "Row 1 graph doesn't match"
 
 
-                let (nRefsAndCommits2,n2)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nRefsAndCommits (Some n)
+                let (nextCommits2,n2)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits1 (Some n)
                 Expect.isTrue (
                     match n2 with
-                    | [ ``P│``; ``C`` ] -> true
+                    | [ ``P│``; (``C`` & ``P│``) ] -> true
                     | _ -> false
                 ) "Row 2 graph doesn't match"
 
-                let (nRefsAndCommits3,n3)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nRefsAndCommits2 (Some n2)
+                let (nextCommits3,n3)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits2 (Some n2)
                 Expect.isTrue (
                     match n3 with
-                    | [ ``P│``; ``P│``; ``C`` ] -> true
+                    | [ ``P│``; ``P│``; ``C`` & ``P╷`` ] -> true
                     | _ -> false
                 ) "Row 3 graph doesn't match"
 
-                let (nRefsAndCommits4,n4)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nRefsAndCommits3 (Some n3)
+                let (nextCommits4,n4)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits3 (Some n3)
                 Expect.isTrue (
                     match n4 with
-                    | [ ``C``; ``P│``; ``P│`` ] -> true
+                    | [ ``C`` & ``P│``; ``P│``; ``P│`` ] -> true
                     | _ -> false
                 ) "Row 4 graph doesn't match"
 
-                let (nRefsAndCommits5,n5)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nRefsAndCommits4 (Some n4)
+                let (nextCommits5,n5)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits4 (Some n4)
                 Expect.isTrue (
                     match n5 with
-                    | [ ``C``; ( ``P┘`` | ``P─``); ``P┘`` ] -> true
+                    | [ ``C`` & ``P└``; ``P┘`` & ``P─``; ``P┘`` ] -> true
                     | _ -> false
-                ) "Row 5 graph doesn't match"
+                ) $"Row 5 graph doesn't match expect C (┘ & ─) ┘ got {n5}"
 
-                let (nRefsAndCommits6,n6)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nRefsAndCommits4 (Some n5)
-                Expect.isEmpty n5 "Row 6 doesn't match"
+                let (nextCommits6,n6)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits5 (Some n5)
+                Expect.isEmpty n6 "Row 6 doesn't match"
 
         ]
