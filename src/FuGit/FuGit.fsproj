@@ -22,6 +22,7 @@
     <Compile Include="Features/Main/Main.Types.fs" />
     <Compile Include="Features/App/App.Types.fs" />
     <Compile Include="Features/Graph/Graph.Types.fs" />
+    <Compile Include="Features/Graph/Graph.View.fs" />
     <Compile Include="Features/Main/Main.View.fs" />
     <Compile Include="Features/App/App.View.fs" />
     <Compile Include="Features/Settings/Settings.State.fs" />

@@ -8,14 +8,17 @@ open Avalonia.FuncUI.Hosts
 open Avalonia.FuncUI
 open Avalonia.FuncUI.Elmish
 open Avalonia.Controls.ApplicationLifetimes
+open Avalonia.Diagnostics
 open FuGit.Features
+
+//https://github.com/HermanKirshin/LinuxDisplayScale
 
 type MainWindow() as this =
     inherit HostWindow()
 
     do
         base.Title <- "FuGit"
-        base.Icon <- WindowIcon("icon.ico")
+        // base.Icon <- WindowIcon("icon.ico")
         base.Height <- 400.0
         base.Width <- 400.0
 
@@ -29,12 +32,15 @@ type MainWindow() as this =
         |> Program.withConsoleTrace
         |> Program.run
 
+        this.AttachDevTools()
+
 type App() =
     inherit Application()
 
     override this.Initialize() =
         this.Styles.Add(FluentTheme())
         this.RequestedThemeVariant <- Styling.ThemeVariant.Dark
+        this.Styles.Load "avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"
 
     override this.OnFrameworkInitializationCompleted() =
         match this.ApplicationLifetime with
@@ -57,6 +63,7 @@ type App() =
             )
 
         | _ -> ()
+
 
 module Program =
 

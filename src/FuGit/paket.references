@@ -2,6 +2,9 @@ Avalonia.Desktop
 Avalonia.FuncUI
 Avalonia.FuncUI.Elmish
 Avalonia.Themes.Fluent
+Avalonia.Controls.DataGrid
+Avalonia.Controls.ItemsRepeater
+Avalonia.Diagnostics
 LibGit2Sharp
 FSharp.Core
 Thoth.Json.Net

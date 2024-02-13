@@ -7,6 +7,7 @@ open Avalonia.FuncUI.Types
 open Avalonia.FuncUI.DSL
 open Avalonia.FuncUI.Hosts
 open System.Threading.Tasks
+open FuGit.Features
 open FuGit.Features.Main
 
 open Avalonia.Controls
@@ -35,28 +36,33 @@ let view mainModel (dispatch) =
             DockPanel.lastChildFill true
             DockPanel.children
                 [
-                    Menu.create [
-                        Menu.dock Dock.Top
-                        Menu.viewItems [
-                            MenuItem.create [
-                                MenuItem.header "File"
-                                MenuItem.viewItems [
-                                    MenuItem.create [
-                                        MenuItem.header "Open Repository"
-                                        // MenuItem.viewItems (
-                                        //     mainModel.Repositories
-                                        //     |> List.map (fun repo ->
-                                        //         MenuItem.create [
-                                        //             MenuItem.header repo.Name
-                                        //             MenuItem.command (fun _ -> Msg.Opened repo |> dispatch)
-                                        //         ]
-                                        //     )
-                                        // )
-                                    ]
+                    Menu.create
+                        [
+                            Menu.dock Dock.Top
+                            Menu.viewItems
+                                [
+                                    MenuItem.create
+                                        [
+                                            MenuItem.header "File"
+                                            MenuItem.viewItems
+                                                [
+                                                    MenuItem.create
+                                                        [
+                                                            MenuItem.header "Open Repository"
+                                                        // MenuItem.viewItems (
+                                                        //     mainModel.Repositories
+                                                        //     |> List.map (fun repo ->
+                                                        //         MenuItem.create [
+                                                        //             MenuItem.header repo.Name
+                                                        //             MenuItem.command (fun _ -> Msg.Opened repo |> dispatch)
+                                                        //         ]
+                                                        //     )
+                                                        // )
+                                                        ]
+                                                ]
+                                        ]
                                 ]
-                            ]
                         ]
-                    ]
                     ScrollViewer.create
                         [
                             ScrollViewer.dock Dock.Top
@@ -75,15 +81,7 @@ let view mainModel (dispatch) =
                                     ]
                             )
                         ]
-                    ScrollViewer.create
-                        [
-                            ScrollViewer.content (
-                                StackPanel.create
-                                    [
-                                        StackPanel.children
-                                            [ TextBlock.create [ TextBlock.text mainModel.SelectedTab ] ]
-                                    ]
-                            )
-                        ]
+
+                    Graph.View.view mainModel.SelectedTab dispatch
                 ]
         ]

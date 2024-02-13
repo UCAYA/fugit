@@ -31,24 +31,16 @@
 
 #r "nuget: LibGit2Sharp"
 
-#load "./Domain/Types.fs"
+#load "./src/FuGit/Domain/Types.fs"
+#load "./src/FuGit/Features/Graph/Graph.Types.fs"
 
 open FuGit
 open LibGit2Sharp
 
-let rootProjects =
-    System.IO.DirectoryInfo "/d/git/testrepo"
-    |> fun dir -> dir.GetDirectories()
-    |> Array.choose (fun d ->
-        if Repository.IsValid d.FullName then Some { Path = d.FullName; Name = d.Name }
-        else None
-    )
+let r = new Repository("/d/git/fugit/testdata/merge1")
 
-let repo =
-    rootProjects
-    |> Array.find (fun r -> r.Name = "merge1")
+let rows = Graph.RepositoryGraph.graphNodeSequence r.Refs |> Seq.toArray
 
-let r = new Repository(repo.Path)
 // r.Commits.SortedBy <-  CommitSortStrategies.Time
 r.Commits |> Seq.truncate 20 |> Seq.map (fun c -> c.MessageShort)
 
@@ -126,6 +118,8 @@ module GitReference =
     // | "refs/heads/" + name -> Some name
     // | _ -> None
 
+ [ 5 down 2 ] |> List.pairwise
+
 let rg =
     r.Refs
     |> Seq.filter ( fun r ->
@@ -138,6 +132,7 @@ let rg =
     // |> Seq.groupBy (fun gr -> gr)
     // |> Map.ofSeq
 
+[ 1; 2; 3 ] |> List.rev |> List.pairwise
 
 // let stashCommits =
 //     rg
@@ -370,6 +365,16 @@ let (nRefsAndCommits2,n2)  = walkCommitAndRefsAndCreateParentsTree nRefsAndCommi
 let (nRefsAndCommits3,n3)  = walkCommitAndRefsAndCreateParentsTree nRefsAndCommits2 n2
 let (nRefsAndCommits4,n4)  = walkCommitAndRefsAndCreateParentsTree nRefsAndCommits3 n3
 let (nRefsAndCommits5,n5)  = walkCommitAndRefsAndCreateParentsTree nRefsAndCommits4 n4
+
+
+
+let l = [ 1; 2; 3]
+
+match l with
+| [] -> None
+| [ x ] -> Some x
+| [ 1; x; 3 ] -> Some x
+| head :: tail -> Some x
 
 // let rec walkCommitAndRefsAndCreateParentsTree (refsAndCommits:(Reference * Commit) list) (childNodes:(NodeType list) list) =
 //     match refsAndCommits |> Seq.tryHead with

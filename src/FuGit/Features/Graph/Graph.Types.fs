@@ -1,4 +1,4 @@
-namespace FuGit.Graph
+namespace FuGit.Features.Graph
 
 open LibGit2Sharp
 
@@ -83,27 +83,6 @@ module RepositoryGraph =
         ]
         |> List.sortByDescending (fun (_r, commit) -> commit.Committer.When)
 
-    // let (|PathWithBottom|_|) nodeType =
-    //     match nodeType with
-    //     | Path(path, columnIndex) ->
-    //         path
-    //         |> List.tryPick (fun path ->
-    //             match path with
-    //             | HorizontalToBottom node -> Some(node, columnIndex)
-    //             | Vertical node -> Some(node, columnIndex)
-    //             | _ -> None
-    //         )
-    //     | _ -> None
-
-
-    // let updateOrInsert columnIndex commitRefColumnIndex rowNodes =
-    //     match rowNodes |> List.tryItem columnIndex with
-    //     | Some(NodeType.Empty columnIndex) ->
-    //         fun newPath -> List.updateAt columnIndex (NodeType.Path([ newPath ], commitRefColumnIndex)) rowNodes
-    //     | Some(NodeType.Path(path, columnIndex)) ->
-    //         fun newPath -> List.updateAt columnIndex (NodeType.Path(newPath :: path, commitRefColumnIndex)) rowNodes
-    //     | Some(NodeType.Commit(_node, _columnIndex)) -> fun _newPath -> rowNodes
-    //     | None -> fun newPath -> List.insertAt columnIndex (NodeType.Path([ newPath ], commitRefColumnIndex)) rowNodes
 
     let updateAtFn index map list =
         let value = list |> List.item index
@@ -120,10 +99,7 @@ module RepositoryGraph =
         | Some idx -> list |> List.updateAt idx (map idx), idx
         | None -> list |> List.insertAt list.Length (map list.Length), list.Length
 
-    let rec walkCommitAndRefsAndCreateParentsTree
-        (commits: Commit list)
-        (previousNodesRow: (GraphNode * Commit option) list option)
-        =
+    let computeNextGraphRow (commits: Commit list) (previousNodesRow: (GraphNode * Commit option) list option) =
 
         // Prepare a new row, if we have a graph with a path on previous row, we will have a half top vertical path on current row
         let currentRow =
@@ -148,7 +124,7 @@ module RepositoryGraph =
             |> List.distinctBy (fun commit -> commit.Id)
             |> List.sortByDescending (fun commit -> commit.Committer.When)
         with
-        | [] -> [], currentRow
+        | [] -> [], currentRow, None
         | (currentCommit) :: nextCommits ->
 
 
@@ -336,4 +312,23 @@ module RepositoryGraph =
                 |> List.skipWhile (fun (node, followCommit) -> followCommit.IsNone && node = emptyNode)
                 |> List.rev
 
-            nextCommits, trimmedRow
+            nextCommits, trimmedRow, Some currentCommit
+
+    let loadGraphNodes refs =
+        let getTargetCommit (ref: Reference) =
+            ref.ResolveToDirectReference().Target |> unbox<Commit>
+
+        let mutable commits = refs |> Seq.map getTargetCommit |> Seq.toList
+
+        let mutable row = None
+
+        seq {
+            while row |> Option.isNone || row.Value <> List.empty do
+                let nextCommits, nextRow, commit = computeNextGraphRow commits row
+                row <- Some nextRow
+                commits <- nextCommits
+
+                match commit with
+                | None -> ()
+                | Some commit -> yield commit, nextRow |> List.map fst
+        }

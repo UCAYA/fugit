@@ -2,7 +2,7 @@ module Graph.Tests
 
 open System.IO
 open Expecto
-open FuGit.Graph
+open FuGit.Features.Graph
 open LibGit2Sharp
 
 let testDataDirectory = DirectoryInfo(  __SOURCE_DIRECTORY__ + "/../../testdata" |> System.IO.Path.GetFullPath)
@@ -67,6 +67,7 @@ let (|``E``|_|) (node, _) =
     if node = RepositoryGraph.emptyNode then Some ()
     else None
 
+
 [<Tests>]
 let tests =
     testList
@@ -77,47 +78,50 @@ let tests =
 
                 use repository = new LibGit2Sharp.Repository(merge1RepositoryPath)
 
-                let commits =
-                    RepositoryGraph.loadRefsAndCommits repository
-                    |> List.map snd
+                let commits = RepositoryGraph.loadRefsAndCommits repository |> List.map snd
 
-                let (nextCommits1, n)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree commits None
-                Expect.isTrue (
-                    match n with
-                    | [ (C & ``P┌``) ; ``P┐`` ] -> true
-                    | _ -> false
-                ) "Row 1 graph doesn't match"
+                let (nextCommits1, n, _) = RepositoryGraph.computeNextGraphRow commits None
+
+                Expect.isTrue
+                    (match n with
+                        | [ (C & ``P┌``); ``P┐`` ] -> true
+                        | _ -> false)
+                    "Row 1 graph doesn't match"
 
 
-                let (nextCommits2,n2)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits1 (Some n)
-                Expect.isTrue (
-                    match n2 with
-                    | [ ``P│``; (``C`` & ``P│``) ] -> true
-                    | _ -> false
-                ) "Row 2 graph doesn't match"
+                let (nextCommits2, n2, _) = RepositoryGraph.computeNextGraphRow nextCommits1 (Some n)
 
-                let (nextCommits3,n3)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits2 (Some n2)
-                Expect.isTrue (
-                    match n3 with
-                    | [ ``P│``; ``P│``; ``C`` & ``P╷`` ] -> true
-                    | _ -> false
-                ) "Row 3 graph doesn't match"
+                Expect.isTrue
+                    (match n2 with
+                        | [ ``P│``; (``C`` & ``P│``) ] -> true
+                        | _ -> false)
+                    "Row 2 graph doesn't match"
 
-                let (nextCommits4,n4)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits3 (Some n3)
-                Expect.isTrue (
-                    match n4 with
-                    | [ ``C`` & ``P│``; ``P│``; ``P│`` ] -> true
-                    | _ -> false
-                ) "Row 4 graph doesn't match"
+                let (nextCommits3, n3, _) = RepositoryGraph.computeNextGraphRow nextCommits2 (Some n2)
 
-                let (nextCommits5,n5)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits4 (Some n4)
-                Expect.isTrue (
-                    match n5 with
-                    | [ ``C`` & ``P└``; ``P┘`` & ``P─``; ``P┘`` ] -> true
-                    | _ -> false
-                ) $"Row 5 graph doesn't match expect C (┘ & ─) ┘ got {n5}"
+                Expect.isTrue
+                    (match n3 with
+                        | [ ``P│``; ``P│``; ``C`` & ``P╷`` ] -> true
+                        | _ -> false)
+                    "Row 3 graph doesn't match"
 
-                let (nextCommits6,n6)  = RepositoryGraph.walkCommitAndRefsAndCreateParentsTree nextCommits5 (Some n5)
+                let (nextCommits4, n4, _) = RepositoryGraph.computeNextGraphRow nextCommits3 (Some n3)
+
+                Expect.isTrue
+                    (match n4 with
+                        | [ ``C`` & ``P│``; ``P│``; ``P│`` ] -> true
+                        | _ -> false)
+                    "Row 4 graph doesn't match"
+
+                let (nextCommits5, n5, _) = RepositoryGraph.computeNextGraphRow nextCommits4 (Some n4)
+
+                Expect.isTrue
+                    (match n5 with
+                        | [ ``C`` & ``P└``; ``P┘`` & ``P─``; ``P┘`` ] -> true
+                        | _ -> false)
+                    $"Row 5 graph doesn't match expect C (┘ & ─) ┘ got {n5}"
+
+                let (nextCommits6, n6, _) = RepositoryGraph.computeNextGraphRow nextCommits5 (Some n5)
                 Expect.isEmpty n6 "Row 6 doesn't match"
 
         ]

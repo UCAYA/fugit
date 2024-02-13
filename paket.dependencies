@@ -7,10 +7,13 @@ nuget Avalonia.FuncUI
 nuget Avalonia.FuncUI.Elmish
 nuget Avalonia.BuildServices 0.0.29
 nuget Avalonia.Themes.Fluent
+nuget Avalonia.Controls.DataGrid
+nuget Avalonia.Controls.ItemsRepeater
 nuget FsToolkit.ErrorHandling
 nuget FsToolkit.ErrorHandling.TaskResult
 nuget LibGit2Sharp
 nuget Thoth.Json.Net
+nuget Avalonia.Diagnostics
 
 nuget Expecto
 nuget YoloDev.Expecto.TestSdk
