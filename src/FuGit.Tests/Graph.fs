@@ -8,65 +8,71 @@ open LibGit2Sharp
 let testDataDirectory = DirectoryInfo(  __SOURCE_DIRECTORY__ + "/../../testdata" |> System.IO.Path.GetFullPath)
 let merge1RepositoryPath = Path.Combine(testDataDirectory.FullName, "merge1")
 
-let (|C|_|) (node, _) =
+let (|C|_|) (node:GraphNode) =
     if node.Commit.IsSome then Some ()
     else None
 
-let (|``P╴``|_|) (node, _) =
-    match node.Path.HalfLeft with
-    | Some _  -> Some ()
-    | _ -> None
+let (|``P╴``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.HorizontalLeft _ -> Some ()
+        | _ -> None)
 
-let (|``P╶``|_|) (node, _) =
-    match node.Path.HalfLeft with
-    | Some _  -> Some ()
-    | _ -> None
+let (|``P╶``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.HorizontalRight _ -> Some ()
+        | _ -> None)
 
-let (|``P╵``|_|) (node, _) =
-    match node.Path.HalfTop with
-    | Some _  -> Some ()
-    | _ -> None
+let (|``P╵``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.End -> Some ()
+        | _ -> None
+    )
 
-let (|``P╷``|_|) (node, _) =
-    match node.Path.HalfBottom with
-    | Some _  -> Some ()
-    | _ -> None
+let (|``P╷``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.Start -> Some ()
+        | _ -> None
+    )
 
-let (|``P┐``|_|) (node, _) =
-    match node.Path.HalfBottom, node.Path.HalfLeft with
-    | Some _ , Some _ -> Some ()
-    | _ -> None
+let (|``P┐``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.HorizontalRightToBottom _ -> Some ()
+        | _ -> None)
 
-let (|``P┌``|_|) (node, _) =
-    match node.Path.HalfBottom, node.Path.HalfRight with
-    | Some _ , Some _ -> Some ()
-    | _ -> None
+let (|``P┌``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.HorizontalLeftToBottom _ -> Some ()
+        | _ -> None)
 
-let (|``P┘``|_|) (node, _) =
-    match node.Path.HalfTop, node.Path.HalfLeft with
-    | Some _ , Some _ -> Some ()
-    | _ -> None
+let (|``P┘``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.VerticalTopToLeft _ -> Some ()
+        | _ -> None)
 
-let (|``P└``|_|) (node, _) =
-    match node.Path.HalfTop, node.Path.HalfRight with
-    | Some _ , Some _ -> Some ()
-    | _ -> None
+let (|``P└``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.VerticalTopToRight _ -> Some ()
+        | _ -> None)
 
+let (|``P─``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.Horizontal _ -> Some ()
+        | _ -> None)
 
-let (|``P─``|_|) (node, _) =
-    match node.Path.HalfLeft, node.Path.HalfRight with
-    | Some _ , Some _ -> Some ()
-    | _ -> None
-
-let (|``P│``|_|) (node, _) =
-    match node.Path.HalfBottom, node.Path.HalfTop with
-    | Some _ , Some _ -> Some ()
-    | _ -> None
-
-let (|``E``|_|) (node, _) =
-    if node = RepositoryGraph.emptyNode then Some ()
-    else None
-
+let (|``P│``|_|) (node:GraphNode) =
+    node.Shapes
+    |> List.tryPick (function
+        | GraphShape.Vertical -> Some ()
+        | _ -> None)
 
 [<Tests>]
 let tests =
@@ -80,48 +86,48 @@ let tests =
 
                 let commits = RepositoryGraph.loadRefsAndCommits repository |> List.map snd
 
-                let (nextCommits1, n, _) = RepositoryGraph.computeNextGraphRow commits None
+                let (nextCommits1, row, _) = RepositoryGraph.computeNextGraphRow commits None
 
                 Expect.isTrue
-                    (match n with
-                        | [ (C & ``P┌``); ``P┐`` ] -> true
+                    (match row.Cells with
+                        | [ Some (C & ``P╷`` & ``P╶``); Some ``P┐`` ] -> true
                         | _ -> false)
                     "Row 1 graph doesn't match"
 
 
-                let (nextCommits2, n2, _) = RepositoryGraph.computeNextGraphRow nextCommits1 (Some n)
+                let (nextCommits2, row2, _) = RepositoryGraph.computeNextGraphRow nextCommits1 (Some row)
 
                 Expect.isTrue
-                    (match n2 with
-                        | [ ``P│``; (``C`` & ``P│``) ] -> true
+                    (match row2.Cells with
+                        | [ Some ``P│``; Some (``C`` & ``P│``) ] -> true
                         | _ -> false)
                     "Row 2 graph doesn't match"
 
-                let (nextCommits3, n3, _) = RepositoryGraph.computeNextGraphRow nextCommits2 (Some n2)
+                let (nextCommits3, row3, _) = RepositoryGraph.computeNextGraphRow nextCommits2 (Some row2)
 
                 Expect.isTrue
-                    (match n3 with
-                        | [ ``P│``; ``P│``; ``C`` & ``P╷`` ] -> true
+                    (match row3.Cells with
+                        | [ Some ``P│``; Some ``P│``; Some ``C`` & Some ``P╷`` ] -> true
                         | _ -> false)
                     "Row 3 graph doesn't match"
 
-                let (nextCommits4, n4, _) = RepositoryGraph.computeNextGraphRow nextCommits3 (Some n3)
+                let (nextCommits4, row4, _) = RepositoryGraph.computeNextGraphRow nextCommits3 (Some row3)
 
                 Expect.isTrue
-                    (match n4 with
-                        | [ ``C`` & ``P│``; ``P│``; ``P│`` ] -> true
+                    (match row4.Cells with
+                        | [ Some ``C`` & Some ``P│``; Some ``P│``; Some ``P│`` ] -> true
                         | _ -> false)
                     "Row 4 graph doesn't match"
 
-                let (nextCommits5, n5, _) = RepositoryGraph.computeNextGraphRow nextCommits4 (Some n4)
+                let (nextCommits5, row5, _) = RepositoryGraph.computeNextGraphRow nextCommits4 (Some row4)
 
                 Expect.isTrue
-                    (match n5 with
-                        | [ ``C`` & ``P└``; ``P┘`` & ``P─``; ``P┘`` ] -> true
+                    (match row5.Cells with
+                        | [ Some (``C`` & ``P╵`` & ``P╶``); Some (``P┘`` & ``P─``); Some ``P┘`` ] -> true
                         | _ -> false)
-                    $"Row 5 graph doesn't match expect C (┘ & ─) ┘ got {n5}"
+                    $"Row 5 graph doesn't match expect C (┘ & ─) ┘ got {row5}"
 
-                let (nextCommits6, n6, _) = RepositoryGraph.computeNextGraphRow nextCommits5 (Some n5)
-                Expect.isEmpty n6 "Row 6 doesn't match"
+                let (nextCommits6, row6, _) = RepositoryGraph.computeNextGraphRow nextCommits5 (Some row5)
+                Expect.isEmpty row6.Cells "Row 6 doesn't match"
 
         ]

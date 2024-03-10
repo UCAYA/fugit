@@ -8,8 +8,12 @@ open Avalonia.FuncUI.Hosts
 open Avalonia.FuncUI
 open Avalonia.FuncUI.Elmish
 open Avalonia.Controls.ApplicationLifetimes
+open Avalonia.Markup.Xaml.Styling
+open Avalonia.Styling
 open Avalonia.Diagnostics
 open FuGit.Features
+open System
+
 
 //https://github.com/HermanKirshin/LinuxDisplayScale
 
@@ -40,7 +44,17 @@ type App() =
     override this.Initialize() =
         this.Styles.Add(FluentTheme())
         this.RequestedThemeVariant <- Styling.ThemeVariant.Dark
-        this.Styles.Load "avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"
+        // this.Styles.Load "avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"
+        this.Styles.Add(
+            StyleInclude(baseUri = null, Source = Uri("avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"))
+        )
+
+        this.Styles.Add(StyleInclude(baseUri = null, Source = Uri("avares://FuGit/Styles.axaml")))
+
+        this.Resources.MergedDictionaries.Add(
+            ResourceInclude(baseUri = null, Source = Uri("avares://FuGit/Resources.axaml"))
+        )
+
 
     override this.OnFrameworkInitializationCompleted() =
         match this.ApplicationLifetime with

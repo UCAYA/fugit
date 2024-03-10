@@ -3,6 +3,7 @@ module FuGit.Features.Graph.View
 open Elmish
 open Avalonia
 open Avalonia.Controls
+open Avalonia.Controls.Shapes
 open Avalonia.Controls.ApplicationLifetimes
 open Avalonia.Data
 open Avalonia.Collections
@@ -34,6 +35,44 @@ let allcommits =
 
 printfn "allcommits %A" allcommits
 
+[<AutoOpen>]
+module DataGridExt =
+    open Avalonia.FuncUI.Types
+    open Avalonia.FuncUI.Builder
+
+    type DataGrid with
+
+        static member gridLinesVisibility<'t when 't :> DataGrid>
+            (gridLinesVisibility: DataGridGridLinesVisibility)
+            : IAttr<'t>
+            =
+            AttrBuilder<'t>
+                .CreateProperty<DataGridGridLinesVisibility>(
+                    DataGrid.GridLinesVisibilityProperty,
+                    gridLinesVisibility,
+                    ValueNone
+                )
+
+        static member rowHeight<'t when 't :> DataGrid>(rowHeight: float) : IAttr<'t> =
+            AttrBuilder<'t>
+                .CreateProperty<float>(DataGrid.RowHeightProperty, rowHeight, ValueNone)
+
+    type DataGridColumn with
+
+        static member cellStyleClasses<'t when 't :> DataGridColumn>(value: string list) : IAttr<'t> =
+            let getter: ('t -> string list) =
+                (fun control -> control.CellStyleClasses |> Seq.map id |> List.ofSeq)
+
+            let setter: ('t * string list -> unit) =
+                (fun (control, value) ->
+                    control.CellStyleClasses.Clear()
+                    control.CellStyleClasses.AddRange(value)
+                )
+
+            AttrBuilder<'t>
+                .CreateProperty<string list>("CellStyleClasses", value, ValueSome getter, ValueSome setter, ValueNone)
+
+
 // type IncrementalLoadingList<'a> () =
 //     inherit AvaloniaList<'a>()
 
@@ -53,6 +92,35 @@ printfn "allcommits %A" allcommits
 // col.Add()
 
 // let colView = Avalonia.Collections.AvaloniaList()
+
+let brushes =
+    [
+        "#49045c"
+        "#720b5f"
+        "#961f60"
+        "#b5395f"
+        "#cf555e"
+        "#e4745e"
+        "#f49462"
+        "#f9bf63"
+        "#e3d55b"
+        "#d2e05e"
+        "#beeb66"
+        "#85ff87"
+        "#00f6aa"
+        "#00e9d1"
+        "#00d9f6"
+        "#00c7ff"
+        "#00b1ff"
+        "#0096ff"
+        "#5775ff"
+        "#6254cd"
+    ]
+    |> List.map Media.Brush.Parse
+
+let getBrushFromIndex index =
+    let i = index % (brushes.Length - 1)
+    brushes[i]
 
 [<AutoOpen>]
 module ItemsRepeater =
@@ -265,6 +333,9 @@ let view selectedTab dispatch =
                             DataGrid.isReadOnly true
                             DataGrid.items dataSource
                             DataGrid.canUserResizeColumns true
+                            DataGrid.gridLinesVisibility DataGridGridLinesVisibility.None
+                            DataGrid.rowHeight 20.0
+
                             DataGrid.columns
                                 [
 
@@ -284,21 +355,60 @@ let view selectedTab dispatch =
                                     //         )
                                     //     ]
 
+                                    // DataGridTemplateColumn.create
+                                    //     [
+                                    //         DataGridTemplateColumn.header "Name"
+                                    //         DataGridTemplateColumn.cellTemplate (
+                                    //             DataTemplateView<_>.create (fun
+                                    //                                             (data:
+                                    //                                                 LazyLoadableItem<Commit *
+                                    //                                                 GraphNode list>) ->
+                                    //                 TextBlock.create
+                                    //                     [
+                                    //                         match data.Data with
+                                    //                         | Loadable.Loaded(commit, _) ->
+                                    //                             TextBlock.text commit.MessageShort
+                                    //                         | _ -> TextBlock.text "Loading"
+                                    //                     ]
+                                    //             )
+                                    //         )
+                                    //     ]
+
                                     DataGridTemplateColumn.create
                                         [
-                                            DataGridTemplateColumn.header "Name"
+                                            DataGridTemplateColumn.header "Graph"
+                                            // DataGridTemplateColumn.cellTheme ControlThemes.dataGridCell.Value
+                                            DataGridTemplateColumn.cellStyleClasses [ "graphCell" ]
                                             DataGridTemplateColumn.cellTemplate (
                                                 DataTemplateView<_>.create (fun
                                                                                 (data:
                                                                                     LazyLoadableItem<Commit *
                                                                                     GraphNode list>) ->
-                                                    TextBlock.create
-                                                        [
-                                                            match data.Data with
-                                                            | Loadable.Loaded(commit, _) ->
-                                                                TextBlock.text commit.MessageShort
-                                                            | _ -> TextBlock.text "Loading"
-                                                        ]
+                                                    match data.Data with
+                                                    | Loadable.Loaded(commit, graphNodes) ->
+                                                        let shapeSize = 20.0
+
+                                                        Canvas.create
+                                                            [
+                                                                Canvas.width (shapeSize * float graphNodes.Length)
+                                                                Canvas.children (
+                                                                    graphNodes
+                                                                    |> List.map (fun node ->
+
+                                                                        Path.create
+                                                                            [
+                                                                                Path.data
+                                                                                    "M 0,10 L 5,10 A 5 5 0 0 1 10 15 L 10 20"
+                                                                                Path.width 20.0
+                                                                                Path.height 20.0
+                                                                                Path.stroke (getBrushFromIndex 0)
+                                                                                Path.strokeThickness 2.0
+                                                                            ]
+                                                                    )
+                                                                )
+                                                            ]
+                                                        :> IView
+                                                    | Loadable.Loading -> TextBlock.create [ TextBlock.text "Graph" ]
                                                 )
                                             )
                                         ]
