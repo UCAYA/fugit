@@ -6,6 +6,7 @@
     <OtherFlags>--warnon:1182</OtherFlags>
     <LangVersion>preview</LangVersion>
     <WarningsAsErrors>FS0025</WarningsAsErrors>
+    <OtherFlags>--warnon:1182 --nowarn:3536 --nowarn:44 --nowarn:3520</OtherFlags>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="icon.ico">

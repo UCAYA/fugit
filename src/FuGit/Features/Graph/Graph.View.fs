@@ -29,7 +29,7 @@ let commits = RepositoryGraph.loadGraphNodes refs //|> Seq.toArray
 let allcommits =
     RepositoryGraph.loadGraphNodes refs
     |> Seq.truncate 30
-    |> Seq.map (fun x -> x |> unbox<Commit * GraphNode list> |> (fun (a, _b) -> a.MessageShort))
+    |> Seq.map (fun x -> x |> (fun (a, b) -> a.MessageShort, b))
     |> Seq.toArray
 
 
@@ -72,26 +72,6 @@ module DataGridExt =
             AttrBuilder<'t>
                 .CreateProperty<string list>("CellStyleClasses", value, ValueSome getter, ValueSome setter, ValueNone)
 
-
-// type IncrementalLoadingList<'a> () =
-//     inherit AvaloniaList<'a>()
-
-//override Item
-// let commits =
-//     [|
-//         {| Commit = "aaaa" |}
-//         {| Commit = "bbb" |}
-//     |]
-
-// type Person(name, age, male) =
-//     member val Name = name with get, set
-//     member val Age = age with get, set
-//     member val IsMale = male with get, set
-
-// let col = ObservableCollection()
-// col.Add()
-
-// let colView = Avalonia.Collections.AvaloniaList()
 
 let brushes =
     [
@@ -156,27 +136,6 @@ open Avalonia.Styling
 open Avalonia.FuncUI.Types
 open Avalonia.FuncUI.VirtualDom
 
-// type Template(update) =
-
-//     let hostControl = HostControl()
-//     let viewHost: IViewHost = unbox hostControl
-
-//     interface Avalonia.Controls.Templates.IDataTemplate with
-//         member this.Match _data = true
-
-//         member this.Build data =
-//             System.Diagnostics.Debug.WriteLine($"Build {data}")
-//             viewHost.Update(update data)
-//             hostControl
-
-//     static member create(update: obj -> IView<_> option) =
-//         let upd data =
-//             update data |> Option.map (unbox<IView>)
-
-//         Template(upd)
-
-//     static member create(update: obj -> IView option) = Template(update)
-
 
 type LazyDataSource<'a>(source: System.Collections.Generic.IEnumerable<'a>, pageSize: int) as self =
     inherit AvaloniaList<LazyLoadableItem<'a>>()
@@ -198,37 +157,16 @@ type LazyDataSource<'a>(source: System.Collections.Generic.IEnumerable<'a>, page
         | Some last when last.IsLoading ->
             let page = ResizeArray<_>(pageSize)
 
-            // let rawItems = ResizeArray<_>(pageSize)
             while page.Count < pageSize && iterator.MoveNext() do
-                // printfn "push %A " (iterator.Current |> unbox<Commit * GraphNode list> |> fun (a, _b) -> a.MessageShort)
-                // (iterator.Current |> unbox<Commit * GraphNode list> |> fun (a, _b) -> a.MessageShort) |> createLoadedItem |> page.Add
                 iterator.Current |> createLoadedItem |> page.Add
-            // printfn "push %A " (iterator.Current |> unbox<Commit * GraphNode list> |> fun (a, _b) -> a.MessageShort)
-            // iterator.Current |> unbox<Commit * GraphNode list> |> fun (a, _b) -> a.MessageShort |> rawItems.Add
 
             let hasMore = page.Count = pageSize
-            // match page |> Seq.tryHead  with
-            // | Some head ->
-            //     self[self.Count - 1] <- head
-            //     page.RemoveAt(0)
-            //     self.AddRange(page)
-
-            //     if hasMore then
-            //         createLoadingItem() |> self.Add
-            // | _ -> ()
 
             self.RemoveAt(self.Count - 1)
             self.AddRange(page)
 
             if hasMore then
                 createLoadingItem () |> self.Add
-
-        // self[0] <-
-        // self.InsertRange(self.Count - 1, page)
-
-        // if page.Count <> pageCount then
-        //     self.RemoveAt(self.Count - 1)
-
 
         | _ -> ()
 
@@ -240,55 +178,64 @@ and LazyLoadableItem<'a>(data: Loadable<'a>, dataSource: LazyDataSource<'a>) =
 
     member self.Data =
         if self.IsLoading then
-            // DispatchQueue.main.async (fun () -> dataSource.LoadNextPage())
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(fun () -> dataSource.LoadNextPage())
             |> ignore
-        // dataSource.LoadNextPage()
+
         data
-// public class CustomDataTemplate : IDataTemplate
-// {
-//     [DataType]
-//     public Type? FancyDataType { get; set; }
 
-//     [Content]
-//     [TemplateContent]
-//     public object? Content { get; set; }
+let dataSource = LazyDataSource(commits, 20)
 
-//     public bool Match(object? data) => FancyDataType?.IsInstanceOfType(data) ?? true;
+module ShapePath =
+    let pathDataRightToBottom = "M 0,10 L 5,10 A 5 5 0 0 1 10 15 L 10 20" // right to bottom
+    let pathDataTopToLeft = "M 0 10 L 5 10 A 5 5 0 0 0 10 5 L 10 0" // top to left
+    let pathDataTopToRight = "M 20 10 L 14 10 A 5 5 0 0 1 10 5 L 10 0" // top to right
+    let pathDataLeftToBottom = "M 20 10 L 15 10 A 5 5 0 0 0 10 15 L 10 20" // left to bottom
+    let pathDataHorizontal = "M 0 10 L 20 10" // horizontal
+    let pathDataVertical = "M 10 0 L 10 20" // vertical
+    let pathDataHalfHorizontalRight = "M 10 10 L 20 10"
+    let pathDataHalfHorizontalLeft = "M 0 10 L 10 10"
+    let pathDataHalfVerticalTop = "M 10 00 L 10 10"
+    let pathDataHalfVerticalBottom = "M 10 10 L 10 20"
 
-//     public Control? Build(object? data) => TemplateContent.Load(Content)?.Result;
-// }
+    let createPath (pathData: string) targetIndex index =
+        Path.create
+            [
+                Path.data pathData
+                Path.width 20.0
+                Path.height 20.0
+                Path.stroke (getBrushFromIndex targetIndex)
+                Path.strokeThickness 2.0
+                Canvas.left (float index * 20.0)
+            ]
+        :> IView
 
 
-// let repo = new Repository()
-
-// let items = Array.init 100000 (fun i -> Person("John", i, true))
-
-// // let data =
-// //     ObservableCollection
-// //         [
-
-// //             Person("Jane", 21, false)
-// //             Person("Bob", 22, true)
-// //         ]
-
-// let template =
-//     Template.create (fun (data: obj) ->
-
-//         TextBlock.create [ TextBlock.text $"data {data}" ] |> Some
-//     )
-// |> Seq.map ( fun (c,_) -> c.MessageShort)
-let dataSource = LazyDataSource(commits, 2)
+    let createFromNode index (graphNode: GraphNode) =
+        graphNode.Shapes
+        |> List.map (
+            function
+            | GraphShape.HorizontalRightToBottom(GraphNodeReference.TargetColumnIndex target) ->
+                createPath pathDataRightToBottom target index
+            | GraphShape.HorizontalLeftToBottom(GraphNodeReference.TargetColumnIndex target) ->
+                createPath pathDataLeftToBottom target index
+            | GraphShape.VerticalTopToLeft(GraphNodeReference.TargetColumnIndex target) ->
+                createPath pathDataTopToLeft target index
+            | GraphShape.VerticalTopToRight(GraphNodeReference.TargetColumnIndex target) ->
+                createPath pathDataTopToLeft target index
+            | GraphShape.Horizontal(GraphNodeReference.TargetColumnIndex target) ->
+                createPath pathDataHorizontal target index
+            | GraphShape.Vertical -> createPath pathDataVertical index index
+            | GraphShape.HorizontalRight(GraphNodeReference.TargetColumnIndex target) ->
+                createPath pathDataHalfHorizontalRight target index
+            | GraphShape.HorizontalLeft(GraphNodeReference.TargetColumnIndex target) ->
+                createPath pathDataHalfHorizontalLeft target index
+            | GraphShape.End -> createPath pathDataHalfVerticalTop index index
+            | GraphShape.Start -> createPath pathDataHalfVerticalBottom index index
+        )
 
 let view selectedTab dispatch =
 
-    //     let data = ctx.useState (
-    //         ObservableCollection [
-    //             Person("John", 20, true)
-    //             Person("Jane", 21, false)
-    //             Person("Bob", 22, true)
-    //         ]
-    //     )
+
     DockPanel.create
         [
             DockPanel.lastChildFill true
@@ -339,53 +286,17 @@ let view selectedTab dispatch =
                             DataGrid.columns
                                 [
 
-                                    // DataGridTemplateColumn.create
-                                    //     [
-                                    //         DataGridTemplateColumn.header "Message"
-                                    //         DataGridTemplateColumn.cellTemplate (
-                                    //             DataTemplateView<_>.create (
-                                    //                 fun  (data:LazyLoadableItem<string>) ->
-                                    //                     TextBlock.create [
-                                    //                         match data.Data with
-                                    //                         | Loadable.Loaded (msg) ->
-                                    //                             TextBlock.text msg
-                                    //                         | _ -> TextBlock.text "Loading"
-                                    //                     ]
-                                    //             )
-                                    //         )
-                                    //     ]
-
-                                    // DataGridTemplateColumn.create
-                                    //     [
-                                    //         DataGridTemplateColumn.header "Name"
-                                    //         DataGridTemplateColumn.cellTemplate (
-                                    //             DataTemplateView<_>.create (fun
-                                    //                                             (data:
-                                    //                                                 LazyLoadableItem<Commit *
-                                    //                                                 GraphNode list>) ->
-                                    //                 TextBlock.create
-                                    //                     [
-                                    //                         match data.Data with
-                                    //                         | Loadable.Loaded(commit, _) ->
-                                    //                             TextBlock.text commit.MessageShort
-                                    //                         | _ -> TextBlock.text "Loading"
-                                    //                     ]
-                                    //             )
-                                    //         )
-                                    //     ]
-
                                     DataGridTemplateColumn.create
                                         [
                                             DataGridTemplateColumn.header "Graph"
-                                            // DataGridTemplateColumn.cellTheme ControlThemes.dataGridCell.Value
                                             DataGridTemplateColumn.cellStyleClasses [ "graphCell" ]
                                             DataGridTemplateColumn.cellTemplate (
                                                 DataTemplateView<_>.create (fun
-                                                                                (data:
+                                                                                (lazyItem:
                                                                                     LazyLoadableItem<Commit *
-                                                                                    GraphNode list>) ->
-                                                    match data.Data with
-                                                    | Loadable.Loaded(commit, graphNodes) ->
+                                                                                    GraphNode option list>) ->
+                                                    match lazyItem.Data with
+                                                    | Loadable.Loaded(_commit, graphNodes) ->
                                                         let shapeSize = 20.0
 
                                                         Canvas.create
@@ -393,17 +304,12 @@ let view selectedTab dispatch =
                                                                 Canvas.width (shapeSize * float graphNodes.Length)
                                                                 Canvas.children (
                                                                     graphNodes
-                                                                    |> List.map (fun node ->
-
-                                                                        Path.create
-                                                                            [
-                                                                                Path.data
-                                                                                    "M 0,10 L 5,10 A 5 5 0 0 1 10 15 L 10 20"
-                                                                                Path.width 20.0
-                                                                                Path.height 20.0
-                                                                                Path.stroke (getBrushFromIndex 0)
-                                                                                Path.strokeThickness 2.0
-                                                                            ]
+                                                                    |> List.indexed
+                                                                    |> List.collect (fun (index, graphNode) ->
+                                                                        match graphNode with
+                                                                        | Some graphNode ->
+                                                                            ShapePath.createFromNode index graphNode
+                                                                        | None -> []
                                                                     )
                                                                 )
                                                             ]
@@ -412,6 +318,28 @@ let view selectedTab dispatch =
                                                 )
                                             )
                                         ]
+
+                                    DataGridTemplateColumn.create
+                                        [
+                                            DataGridTemplateColumn.header "Message"
+                                            DataGridTemplateColumn.cellStyleClasses [ "graphCell" ]
+                                            DataGridTemplateColumn.cellTemplate (
+                                                DataTemplateView<_>.create (fun
+                                                                                (lazyItem:
+                                                                                    LazyLoadableItem<Commit *
+                                                                                    GraphNode option list>) ->
+                                                    TextBlock.create
+                                                        [
+                                                            match lazyItem.Data with
+                                                            | Loadable.Loaded(commit, _) ->
+                                                                TextBlock.text commit.MessageShort
+                                                            | _ -> TextBlock.text ""
+
+                                                        ]
+                                                )
+                                            )
+                                        ]
+
 
                                 ]
                         ]
